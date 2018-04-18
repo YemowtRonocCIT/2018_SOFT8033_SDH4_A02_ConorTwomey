@@ -16,7 +16,8 @@ import json
 # FUNCTION my_main
 # ------------------------------------------
 def my_main(dataset_dir, result_dir, percentage_f):
-    pass
+    inputRDD = sc.textFile("%s/*.json" % (dataset_dir, ))
+    dictRDD = inputRDD.map(lambda line: json.loads(line))
 
 # ---------------------------------------------------------------
 #           PYTHON EXECUTION
