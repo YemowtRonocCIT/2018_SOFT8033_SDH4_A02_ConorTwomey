@@ -115,6 +115,26 @@ def check_threshold_bad_reviews(tupl, threshold_percentage):
 
     return (percentage_bad_reviews < threshold_percentage)
 
+
+def append_average_points_per_review(tupl):
+    VALUE_INDEX = 1
+    REVIEW_COUNT_INDEX = 0
+    NEGATIVE_REVIEW_INDEX = 1
+    TOTAL_SCORE_INDEX = 2
+
+    value_tuple = tupl[VALUE_INDEX]
+    review_count = value_tuple[REVIEW_COUNT_INDEX]
+    negative_review_count = value_tuple[NEGATIVE_REVIEW_INDEX]
+    total_score = value_tuple[TOTAL_SCORE_INDEX]
+
+    average_score = float(total_score) / float(review_count)
+
+    final_tuple = (review_count, negative_review_count, total_score, average_score)
+
+    result = (tupl[0], final_tuple)
+
+    return result
+
 # ------------------------------------------
 # FUNCTION my_main
 # ------------------------------------------
@@ -133,6 +153,8 @@ def my_main(dataset_dir, result_dir, percentage_f):
 
     filteredRDD = combinedRDD.filter(lambda tupl: check_enough_reviews(tupl, average_reviews_per_cuisine))
     filteredRDD = filteredRDD.filter(lambda tupl: check_threshold_bad_reviews(tupl, percentage_f))
+
+    average_scoreRDD = filteredRDD.map(append_average_points_per_review)
 
 
 
