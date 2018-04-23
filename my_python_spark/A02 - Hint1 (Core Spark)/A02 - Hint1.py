@@ -25,6 +25,54 @@ def set_key_value(dictionary):
 
     return result
 
+
+def initialise_accumulator(tupl):
+    EVALUATION_INDEX = 0
+    POINTS_INDEX = 1
+    NEGATIVE_REVIEW = 'Negative'
+
+    review_count = 1
+    negative_review_count = 0
+
+    if tupl[EVALUATION_INDEX] == NEGATIVE_REVIEW:
+        negative_review_count += 1
+
+    points = tupl[POINTS_INDEX]
+
+    points_tuple = (review_count, negative_review_count, points)
+    return points_tuple
+
+
+def add_new_tuple_to_accumulator(accumulator, new_tuple):
+    REVIEW_INDEX = 0
+    NEGATIVE_REVIEW_INDEX = 1
+    POINTS_INDEX = 2
+    NEW_EVALUATION_INDEX = 0
+    NEW_POINTS_INDEX = 1
+    NEGATIVE_REVIEW = 'Negative'
+
+    review_count = accumulator[REVIEW_INDEX]
+    negative_review_count = accumulator[NEGATIVE_REVIEW_INDEX]
+    points = accumulator[POINTS_INDEX]
+
+    review_count += 1
+    if new_tuple[NEW_EVALUATION_INDEX] == NEGATIVE_REVIEW:
+        negative_review_count += 1
+        points -= new_tuple[NEW_POINTS_INDEX]
+    else:
+        points += new_tuple[NEW_POINTS_INDEX]
+
+    result = (review_count, negative_review_count, points)
+    return result
+
+
+def merge_accumulators(accumulator, merging_accumulator):
+    zipped_tuples = zip(accumulator, merging_accumulator)
+    mapped_tuples = map(sum, zipped_tuples)
+    final_tuple = tuple(mapped_tuples)
+
+    return final_tuple
+
 # ------------------------------------------
 # FUNCTION my_main
 # ------------------------------------------
@@ -32,6 +80,10 @@ def my_main(dataset_dir, result_dir, percentage_f):
     inputRDD = sc.textFile("%s/*.json" % (dataset_dir, ))
     dictRDD = inputRDD.map(lambda line: json.loads(line))
     key_valueRDD = dictRDD.map(set_key_value)
+
+    combinedRDD = key_valueRDD.combineByKey(initialise_accumulator,
+                                            add_new_tuple_to_accumulator,
+                                            merge_accumulators)
 
 # ---------------------------------------------------------------
 #           PYTHON EXECUTION
