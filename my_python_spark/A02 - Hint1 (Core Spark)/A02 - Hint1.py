@@ -12,12 +12,26 @@
 
 import json
 
+
+def set_key_value(dictionary):
+    CUISINE_KEY = 'cuisine'
+    POINTS_KEY = 'points'
+    EVALUATION_KEY = 'evaluation'
+
+    cuisine = dictionary[CUISINE_KEY]
+    evaluation = dictionary[EVALUATION_KEY]
+    points = dictionary[POINTS_KEY]
+    result = (cuisine, (evaluation, points))
+
+    return result
+
 # ------------------------------------------
 # FUNCTION my_main
 # ------------------------------------------
 def my_main(dataset_dir, result_dir, percentage_f):
     inputRDD = sc.textFile("%s/*.json" % (dataset_dir, ))
     dictRDD = inputRDD.map(lambda line: json.loads(line))
+    key_valueRDD = dictRDD.map(set_key_value)
 
 # ---------------------------------------------------------------
 #           PYTHON EXECUTION
