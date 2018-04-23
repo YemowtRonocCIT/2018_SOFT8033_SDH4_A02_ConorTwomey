@@ -156,6 +156,9 @@ def my_main(dataset_dir, result_dir, percentage_f):
 
     average_scoreRDD = filteredRDD.map(append_average_points_per_review)
 
+    sortedRDD = average_scoreRDD.sortBy(lambda tupl: tupl[1][3], False)
+    sortedRDD.saveAsTextFile(result_dir)
+
 
 
 # ---------------------------------------------------------------
