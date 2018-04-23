@@ -73,6 +73,24 @@ def merge_accumulators(accumulator, merging_accumulator):
 
     return final_tuple
 
+
+def extract_review_count(tupl):
+    VALUE_INDEX = 1
+    REVIEW_COUNT_INDEX = 0
+
+    tuple_value = tupl[VALUE_INDEX]
+    view_count = tuple_value[REVIEW_COUNT_INDEX]
+
+    return view_count
+
+def extract_average_views_per_cuisine(rdd):
+    number_of_cuisines = rdd.count()
+    review_countRDD = rdd.map(extract_review_count)
+    review_count = review_countRDD.reduce(lambda x, y: x + y)
+    average_reviews_per_cuisine = float(review_count) / float(number_of_cuisines)
+
+    return average_reviews_per_cuisine
+
 # ------------------------------------------
 # FUNCTION my_main
 # ------------------------------------------
@@ -84,6 +102,10 @@ def my_main(dataset_dir, result_dir, percentage_f):
     combinedRDD = key_valueRDD.combineByKey(initialise_accumulator,
                                             add_new_tuple_to_accumulator,
                                             merge_accumulators)
+
+    combinedRDD.persist()
+
+    average_reviews_per_cuisine = extract_average_views_per_cuisine(combinedRDD)
 
 # ---------------------------------------------------------------
 #           PYTHON EXECUTION
