@@ -91,6 +91,30 @@ def extract_average_views_per_cuisine(rdd):
 
     return average_reviews_per_cuisine
 
+
+def check_enough_reviews(tupl, minimum_review_count):
+    VALUE_INDEX = 1
+    REVIEW_COUNT_INDEX = 0
+
+    value_tuple = tupl[VALUE_INDEX]
+    review_count = value_tuple[REVIEW_COUNT_INDEX]
+
+    return (review_count >= minimum_review_count)
+
+
+def check_threshold_bad_reviews(tupl, threshold_percentage):
+    VALUE_INDEX = 1
+    REVIEW_COUNT_INDEX = 0
+    BAD_REVIEW_COUNT_INDEX = 1
+
+    value_tuple = tupl[VALUE_INDEX]
+    review_count = value_tuple[REVIEW_COUNT_INDEX]
+    bad_review_count = value_tuple[BAD_REVIEW_COUNT_INDEX]
+
+    percentage_bad_reviews = (float(bad_review_count) / float(review_count)) * 100
+
+    return (percentage_bad_reviews < threshold_percentage)
+
 # ------------------------------------------
 # FUNCTION my_main
 # ------------------------------------------
@@ -106,6 +130,11 @@ def my_main(dataset_dir, result_dir, percentage_f):
     combinedRDD.persist()
 
     average_reviews_per_cuisine = extract_average_views_per_cuisine(combinedRDD)
+
+    filteredRDD = combinedRDD.filter(lambda tupl: check_enough_reviews(tupl, average_reviews_per_cuisine))
+    filteredRDD = filteredRDD.filter(lambda tupl: check_threshold_bad_reviews(tupl, percentage_f))
+
+
 
 # ---------------------------------------------------------------
 #           PYTHON EXECUTION
