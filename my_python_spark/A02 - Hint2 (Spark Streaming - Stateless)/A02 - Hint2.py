@@ -95,19 +95,16 @@ def get_source_dir_file_names(source_dir, verbose):
 def streaming_simulation(source_dir, monitoring_dir, time_step_interval, verbose):
     # 1. We get the names of the files on source_dir
     files = get_source_dir_file_names(source_dir, verbose)
-    start = time.time()
-    count = 0
 
     # 2. We simulate the dynamic arriving of such these files from source_dir to dataset_dir
     # (i.e, the files are moved one by one for each time period, simulating their generation).
     for file in files:
-        count += 1
-        print(time.time() - start)
-        # 2.1. We copy the file from source_dir to dataset_dir#
-        dbutils.fs.cp(source_dir + file, monitoring_dir + file)
+        # 2.1. We copy the file from source_dir to dataset_dir
+        dbutils.fs.cp(source_dir + file, monitoring_dir + file, False)
 
         # 2.2. We wait the desired transfer_interval
-        time.sleep(start + (count * time_step_interval) - time.time())
+        time.sleep(time_step_interval)
+
 
 # ------------------------------------------
 # FUNCTION my_main
