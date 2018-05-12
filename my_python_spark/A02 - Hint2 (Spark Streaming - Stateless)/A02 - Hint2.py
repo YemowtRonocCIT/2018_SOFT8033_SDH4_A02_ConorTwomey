@@ -14,13 +14,249 @@ import time
 from pyspark.streaming import StreamingContext
 import json
 
+DUMMY_KEY = 'dummy'
+
+
+def set_key_value(dictionary):
+    CUISINE_KEY = 'cuisine'
+    POINTS_KEY = 'points'
+    EVALUATION_KEY = 'evaluation'
+
+    cuisine = dictionary[CUISINE_KEY]
+    evaluation = dictionary[EVALUATION_KEY]
+    points = dictionary[POINTS_KEY]
+    result = (cuisine, (evaluation, points))
+
+    return result
+
+
+def initialise_accumulator(tupl):
+    EVALUATION_INDEX = 0
+    POINTS_INDEX = 1
+    NEGATIVE_REVIEW = 'Negative'
+
+    review_count = 1
+    negative_review_count = 0
+
+    if tupl[EVALUATION_INDEX] == NEGATIVE_REVIEW:
+        negative_review_count += 1
+
+    points = tupl[POINTS_INDEX]
+
+    points_tuple = (review_count, negative_review_count, points)
+    return points_tuple
+
+
+def add_new_tuple_to_accumulator(accumulator, new_tuple):
+    REVIEW_INDEX = 0
+    NEGATIVE_REVIEW_INDEX = 1
+    POINTS_INDEX = 2
+    NEW_EVALUATION_INDEX = 0
+    NEW_POINTS_INDEX = 1
+    NEGATIVE_REVIEW = 'Negative'
+
+    review_count = accumulator[REVIEW_INDEX]
+    negative_review_count = int(accumulator[NEGATIVE_REVIEW_INDEX])
+    points = accumulator[POINTS_INDEX]
+
+    review_count += 1
+    if new_tuple[NEW_EVALUATION_INDEX] == NEGATIVE_REVIEW:
+        negative_review_count += 1
+        points -= new_tuple[NEW_POINTS_INDEX]
+    else:
+        points += new_tuple[NEW_POINTS_INDEX]
+
+    result = (review_count, negative_review_count, points)
+    return result
+
+
+def merge_accumulators(accumulator, merging_accumulator):
+    zipped_tuples = zip(accumulator, merging_accumulator)
+    mapped_tuples = map(sum, zipped_tuples)
+    final_tuple = tuple(mapped_tuples)
+
+    return final_tuple
+
+
+def extract_review_count(tupl):
+    VALUE_INDEX = 1
+    REVIEW_COUNT_INDEX = 0
+
+    tuple_value = tupl[VALUE_INDEX]
+    view_count = tuple_value[REVIEW_COUNT_INDEX]
+
+    return view_count
+
+
+def extract_average_views_per_cuisine(stream):
+    number_of_cuisines = stream.count()
+    review_count_stream = stream.map(extract_review_count)
+    review_count = review_count_stream.reduce(lambda x, y: x + y)
+    average_reviews_per_cuisine = review_count / number_of_cuisines
+
+    return average_reviews_per_cuisine
+
+
+def check_enough_reviews(tupl, minimum_review_count):
+    VALUE_INDEX = 1
+    REVIEW_COUNT_INDEX = 0
+
+    value_tuple = tupl[VALUE_INDEX]
+    review_count = value_tuple[REVIEW_COUNT_INDEX]
+
+    return (review_count >= minimum_review_count)
+
+
+def check_threshold_bad_reviews(tupl, threshold_percentage):
+    VALUE_INDEX = 1
+    REVIEW_COUNT_INDEX = 0
+    BAD_REVIEW_COUNT_INDEX = 1
+
+    value_tuple = tupl[VALUE_INDEX]
+    review_count = value_tuple[REVIEW_COUNT_INDEX]
+    bad_review_count = value_tuple[BAD_REVIEW_COUNT_INDEX]
+
+    percentage_bad_reviews = (float(bad_review_count) / float(review_count)) * 100
+
+    return (percentage_bad_reviews < threshold_percentage)
+
+
+def append_average_points_per_review(tupl):
+    VALUE_INDEX = 1
+    REVIEW_COUNT_INDEX = 0
+    NEGATIVE_REVIEW_INDEX = 1
+    TOTAL_SCORE_INDEX = 2
+
+    value_tuple = tupl[VALUE_INDEX]
+    review_count = value_tuple[REVIEW_COUNT_INDEX]
+    negative_review_count = value_tuple[NEGATIVE_REVIEW_INDEX]
+    total_score = value_tuple[TOTAL_SCORE_INDEX]
+
+    average_score = float(total_score) / float(review_count)
+
+    final_tuple = (review_count, negative_review_count, total_score, average_score)
+
+    result = (tupl[0], final_tuple)
+
+    return result
+
+
+def to_review_count_tuple(tupl):
+    VALUE_INDEX = 1
+    REVIEW_COUNT_INDEX = 0
+
+    tuple_value = tupl[VALUE_INDEX]
+    review_count = tuple_value[REVIEW_COUNT_INDEX]
+
+    return (DUMMY_KEY, review_count)
+
+
+def reformat_joined_rdd(tupl):
+    # Sample: ('dummy', ( (u'Thai', (1, 0, 9)), (37, 253) ))
+    working_tuple = tupl[1]
+
+    ORIGINAL_TUPLE_INDEX = 0
+    AVERAGE_COUNT_INDEX = 1
+
+    original_tuple = working_tuple[ORIGINAL_TUPLE_INDEX]
+    total_count_tuple = working_tuple[AVERAGE_COUNT_INDEX]
+    average_review_count = float(total_count_tuple[1]) / float(total_count_tuple[0])
+
+    CUISINE_INDEX = 0
+    VALUES_INDEX = 1
+    cuisine = original_tuple[CUISINE_INDEX]
+    cuisine_values = original_tuple[VALUES_INDEX]
+
+    REVIEW_COUNT_INDEX = 0
+    NEGATIVE_REVIEW_COUNT_INDEX = 1
+    TOTAL_SCORE_INDEX = 2
+    cuisines_review_count = cuisine_values[REVIEW_COUNT_INDEX]
+    cuisines_negative_review_count = cuisine_values[NEGATIVE_REVIEW_COUNT_INDEX]
+    cuisines_total_score = cuisine_values[TOTAL_SCORE_INDEX]
+
+    points_per_review = float(cuisines_total_score) / float(cuisines_review_count)
+    values_tuple = (cuisines_review_count, cuisines_negative_review_count, cuisines_total_score, points_per_review,
+                    average_review_count)
+
+    return (cuisine, values_tuple)
+
+
+def remove_unwanted_cuisines(tupl, percentage_f):
+    VALUES_INDEX = 1
+    value_tuple = tupl[VALUES_INDEX]
+
+    REVIEW_COUNT_INDEX = 0
+    NEGATIVE_REVIEW_COUNT_INDEX = 1
+    AVERAGE_REVIEW_COUNT_INDEX = 4
+
+    review_count = value_tuple[REVIEW_COUNT_INDEX]
+    negative_review_count = value_tuple[NEGATIVE_REVIEW_COUNT_INDEX]
+    average_review_count = value_tuple[AVERAGE_REVIEW_COUNT_INDEX]
+
+    if review_count < average_review_count:
+        return False
+
+    percent_bad_reviews = (float(negative_review_count) / float(review_count)) * 100
+    if percent_bad_reviews > percentage_f:
+        return False
+
+    return True
+
+
+def cleanup_tuple(tupl):
+    CUISINE_INDEX = 0
+    VALUES_INDEX = 1
+    cuisine = tupl[CUISINE_INDEX]
+    value_tuple = tupl[VALUES_INDEX]
+
+    REVIEW_COUNT_INDEX = 0
+    NEGATIVE_REVIEW_COUNT_INDEX = 1
+    SCORE_INDEX = 2
+    AVERAGE_POINTS_PER_REVIEW_INDEX = 3
+
+    review_count = value_tuple[REVIEW_COUNT_INDEX]
+    negative_review_count = value_tuple[NEGATIVE_REVIEW_COUNT_INDEX]
+    score = value_tuple[SCORE_INDEX]
+    average_points_per_review = value_tuple[AVERAGE_POINTS_PER_REVIEW_INDEX]
+
+    final_value_tuple = (review_count, negative_review_count, score, average_points_per_review)
+
+    return (cuisine, final_value_tuple)
 
 
 # ------------------------------------------
 # FUNCTION my_model
 # ------------------------------------------
 def my_model(ssc, monitoring_dir, result_dir, percentage_f):
-    pass
+    input_stream = ssc.textFileStream(monitoring_dir)
+
+    mapped_stream = input_stream.map(lambda line: json.loads(line))
+    mapped_stream = mapped_stream.map(set_key_value)
+
+    combined_stream = mapped_stream.combineByKey(initialise_accumulator,
+                                                 add_new_tuple_to_accumulator,
+                                                 merge_accumulators)
+
+    total_reviews_stream = combined_stream.map(to_review_count_tuple)
+    total_reviews = total_reviews_stream.combineByKey(lambda x: x,
+                                                      lambda x, y: x + y,
+                                                      lambda x, y: x + y)
+
+    number_of_cuisines = combined_stream.count()
+    number_of_cuisines_stream = number_of_cuisines.map(lambda x: (DUMMY_KEY, x))
+    combined_cuisines_reviews_stream = number_of_cuisines_stream.join(total_reviews)
+
+    combined_stream = combined_stream.map(lambda x: (DUMMY_KEY, x))
+    joined_stream = combined_stream.join(combined_cuisines_reviews_stream)
+
+    formatted_stream = joined_stream.map(reformat_joined_rdd)
+
+    formatted_stream = formatted_stream.filter(lambda tupl: remove_unwanted_cuisines(tupl, percentage_f))
+    formatted_stream = formatted_stream.map(cleanup_tuple)
+    formatted_stream.pprint()
+
+    formatted_stream.saveAsTextFiles(result_dir)
+
 
 # ------------------------------------------
 # FUNCTION create_ssc
