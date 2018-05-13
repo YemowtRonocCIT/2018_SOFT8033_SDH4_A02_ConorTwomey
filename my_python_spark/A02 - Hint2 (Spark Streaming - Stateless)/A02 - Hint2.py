@@ -253,6 +253,7 @@ def my_model(ssc, monitoring_dir, result_dir, percentage_f):
 
     formatted_stream = formatted_stream.filter(lambda tupl: remove_unwanted_cuisines(tupl, percentage_f))
     formatted_stream = formatted_stream.map(cleanup_tuple)
+    formatted_stream = formatted_stream.transform(lambda rdd: rdd.sortBy(lambda tupl: tupl[1][3], False))
     formatted_stream.pprint()
 
     formatted_stream.saveAsTextFiles(result_dir)
